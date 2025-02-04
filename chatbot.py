@@ -97,7 +97,7 @@ else:
         model="hf.co/ojisetyawan/gemma2-9b-cpt-sahabatai-v1-instruct-Q4_K_M-GGUF",
         temperature=0,
     )
-    config = {"model": "hf.co/ojisetyawan/gemma2-9b-cpt-sahabatai-v1-instruct-Q4_K_M-GGUF", "temperature": 0.5}
+    config = {"model": "hf.co/ojisetyawan/gemma2-9b-cpt-sahabatai-v1-instruct-Q4_K_M-GGUF", "temperature": 0}
     with open(model_config_path, "w") as f:
         json.dump(config, f)
     print("Model initialized and configuration saved.")
