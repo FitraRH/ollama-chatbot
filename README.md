@@ -1,7 +1,3 @@
-Tentu, berikut adalah **README** yang telah diperbarui dengan tambahan instruksi tentang penggunaan **virtual environment (venv)** di WSL (Windows Subsystem for Linux):
-
----
-
 # Shopping Assistant Flask Application
 
 This Flask application provides a simple shopping assistant with the ability to answer questions about products and shipping fees. It uses an AI model for answering questions, integrates with a vector store for document retrieval, and supports both a web interface and an API endpoint.
