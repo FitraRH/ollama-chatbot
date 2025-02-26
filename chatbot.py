@@ -94,10 +94,10 @@ if os.path.exists(model_config_path):
     print("Model initialized from configuration file.")
 else:
     llm = ChatOllama(
-        model="hf.co/ojisetyawan/gemma2-9b-cpt-sahabatai-v1-instruct-Q4_K_M-GGUF",
+        model="modellexnew:latest",
         temperature=0,
     )
-    config = {"model": "hf.co/ojisetyawan/gemma2-9b-cpt-sahabatai-v1-instruct-Q4_K_M-GGUF", "temperature": 0}
+    config = {"model": "modellexnew:latest", "temperature": 0}
     with open(model_config_path, "w") as f:
         json.dump(config, f)
     print("Model initialized and configuration saved.")
@@ -367,4 +367,4 @@ def ask():
         return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(host="0.0.0.0", debug=True)
