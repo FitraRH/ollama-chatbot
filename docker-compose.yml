@@ -1,0 +1,42 @@
+version: "3.8"
+
+services:
+  ollama:
+    image: ollama/ollama
+    container_name: ollama_server
+    restart: always
+    ports:
+      - "11435:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    command: ["serve"]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  flask_app:
+    build: .
+    container_name: flask_app
+    restart: always
+    depends_on:
+      - ollama
+    ports:
+      - "5000:5000"
+    environment:
+      - OLLAMA_API_BASE_URL=http://ollama:11434
+    volumes:
+      - .:/app
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+volumes:
+  ollama_data:

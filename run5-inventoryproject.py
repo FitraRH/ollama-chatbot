@@ -14,11 +14,11 @@ import sqlite3
 app = Flask(__name__)
 
 # File paths for persistent storage
-db_path = "store.db"
+db_path = "inventory.db"
 model_config_path = "./model.json"
 
 # Ensure the persistence directory exists
-persist_directory = "./chroma_langchain_db"
+persist_directory = "./chroma-inventory"
 os.makedirs(persist_directory, exist_ok=True)
 
 def init_db():
@@ -32,59 +32,126 @@ def init_db():
                     nama TEXT,
                     harga INTEGER,
                     kategori TEXT,
-                    ukuran TEXT,
+                    merk TEXT,
                     stok INTEGER)''')
     
-    # Create ongkir (shipping) table
-    c.execute('''CREATE TABLE IF NOT EXISTS ongkir (
+    # Create project (shipping) table
+    c.execute('''CREATE TABLE IF NOT EXISTS project (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     kota TEXT,
-                    biaya INTEGER)''')
+                    instansi TEXT,
+                    nama TEXT,
+                    status TEXT)''')
     
     # Check if barang table is empty and insert initial data
     c.execute("SELECT COUNT(*) FROM barang")
     if c.fetchone()[0] == 0:
         barang = [
-            ("Baju Kemeja", 100000, "Pakaian", "S,M,L,XL", 1),
-            ("Celana Cino", 180000, "Pakaian", "M,L,XL", 1),
-            ("Topi Kinz", 50000, "Aksesoris", "All Size", 0)
+            ("Baut", 100000, "Tools", "10", 1),
+            ("Vanbelt Mobil", 180000, "Tools", "Innova Zenix", 1),
+            ("Hp Samsung", 50000, "Electronic", "A06", 1)
         ]
-        c.executemany("INSERT INTO barang (nama, harga, kategori, ukuran, stok) VALUES (?, ?, ?, ?, ?)", barang)
+        c.executemany("INSERT INTO barang (nama, harga, kategori, merk, stok) VALUES (?, ?, ?, ?, ?)", barang)
     
-    # Check if ongkir table is empty and insert initial data
-    c.execute("SELECT COUNT(*) FROM ongkir")
+    # Check if project table is empty and insert initial data
+    c.execute("SELECT COUNT(*) FROM project")
     if c.fetchone()[0] == 0:
-        ongkir = [
-            ("Jakarta", 20000),
-            ("Bandung", 15000),
-            ("Surabaya", 25000),
-            ("Luar Kota", 45000)
+        project = [
+            ("Jakarta","Kejagung", "Project A", "Finish"),
+            ("Bogor","Polri", "Project B", "Progress"),
+            ("Bandung","Kemhan", "Project C", "Pending"),
+            ("Depok","Unhan", "Project Smart Class", "Cancel")
         ]
-        c.executemany("INSERT INTO ongkir (kota, biaya) VALUES (?, ?)", ongkir)
+        c.executemany("INSERT INTO project (kota, instansi, nama, status) VALUES (?, ?, ?, ?)", project)
     
+    # Create mapping table between project and barang
+    c.execute('''CREATE TABLE IF NOT EXISTS project_barang (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    project_id INTEGER,
+                    barang_id INTEGER,
+                    jumlah INTEGER,
+                    FOREIGN KEY (project_id) REFERENCES project(id),
+                    FOREIGN KEY (barang_id) REFERENCES barang(id))''')
+
+    # Insert dummy data if empty
+    c.execute("SELECT COUNT(*) FROM project_barang")
+    if c.fetchone()[0] == 0:
+        project_barang = [
+            (1, 1, 10),  # Project A menggunakan 10 Baut
+            (1, 2, 5),   # Project A menggunakan 5 Vanbelt Mobil
+            (2, 3, 2),   # Project B menggunakan 2 Hp Samsung
+        ]
+        c.executemany("INSERT INTO project_barang (project_id, barang_id, jumlah) VALUES (?, ?, ?)", project_barang)
+
+    conn.commit()
+    conn.close()
+
+def init_mapping_db():
+    """Initialize SQLite database with initial data"""
+    conn = sqlite3.connect(db_path)
+    c = conn.cursor()
+    
+    # Create mapping table between project and barang
+    c.execute('''CREATE TABLE IF NOT EXISTS project_barang (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    project_id INTEGER,
+                    barang_id INTEGER,
+                    jumlah INTEGER,
+                    FOREIGN KEY (project_id) REFERENCES project(id),
+                    FOREIGN KEY (barang_id) REFERENCES barang(id))''')
+
+    # Insert dummy data if empty
+    c.execute("SELECT COUNT(*) FROM project_barang")
+    if c.fetchone()[0] == 0:
+        project_barang = [
+            (1, 1, 10),  # Project A menggunakan 10 Baut
+            (1, 2, 5),   # Project A menggunakan 5 Vanbelt Mobil
+            (2, 3, 2),   # Project B menggunakan 2 Hp Samsung
+        ]
+        c.executemany("INSERT INTO project_barang (project_id, barang_id, jumlah) VALUES (?, ?, ?)", project_barang)
+
     conn.commit()
     conn.close()
 
 # Ensure database is initialized before anything else
 init_db()
+init_mapping_db()
 
 def get_barang():
     """Retrieve products from the database"""
     conn = sqlite3.connect(db_path)
     c = conn.cursor()
-    c.execute("SELECT id, nama, harga, kategori, ukuran, stok FROM barang")
-    data = [{"id": row[0], "nama": row[1], "harga": row[2], "kategori": row[3], "ukuran": row[4].split(','), "stok": bool(row[5])} for row in c.fetchall()]
+    c.execute("SELECT id, nama, harga, kategori, merk, stok FROM barang")
+    data = [{"id": row[0], "nama": row[1], "harga": row[2], "kategori": row[3], "merk": row[4].split(','), "stok": bool(row[5])} for row in c.fetchall()]
     conn.close()
     return data
 
-def get_ongkir():
-    """Retrieve shipping rates from the database"""
+def get_project():
     conn = sqlite3.connect(db_path)
     c = conn.cursor()
-    c.execute("SELECT kota, biaya FROM ongkir")
-    data = {row[0]: row[1] for row in c.fetchall()}
+    c.execute("SELECT kota, instansi, nama,status FROM project")
+    data = {row[2]: [row[0],row[1],row[3]] for row in c.fetchall()}
     conn.close()
     return data
+
+def get_project_barang():
+    conn = sqlite3.connect(db_path)
+    c = conn.cursor()
+    c.execute("""
+        SELECT p.nama, b.nama, pb.jumlah 
+        FROM project_barang pb
+        JOIN project p ON pb.project_id = p.id
+        JOIN barang b ON pb.barang_id = b.id
+    """)
+    data = {}
+    for row in c.fetchall():
+        project_name, barang_name, jumlah = row
+        if project_name not in data:
+            data[project_name] = []
+        data[project_name].append(f"{barang_name} ({jumlah} pcs)")
+    conn.close()
+    return data
+
 
 # Initialize or load the LLM
 if os.path.exists(model_config_path):
@@ -115,15 +182,20 @@ vector_store = Chroma(
 )
 print("Vector store initialized.")
 
-# Retrieve current barang and ongkir data
+# Retrieve current barang and project data
 barang = get_barang()
-ongkir = get_ongkir()
+project = get_project()
+project_barang = get_project_barang()
+project_barang_text = "\n".join([f"{k}: {', '.join(v)}" for k, v in project_barang.items()])
 
 # Membuat string daftar barang untuk dokumen
 barang_text = "\n".join([f"{item['nama']} (Kategori: {item['kategori']}, Harga: Rp{item['harga']}, "
-    f"Ukuran: {', '.join(item['ukuran'])}, Stok: {'Tersedia' if item['stok'] else 'Habis'})"
+    f"merk: {', '.join(item['merk'])}, Stok: {'Tersedia' if item['stok'] else 'Habis'})"
     for item in barang])
-ongkir_text = ", ".join([f"{k.lower()} (Rp{v})" for k, v in ongkir.items()])
+project_text = ", ".join([f"{k.lower()} ({v})" for k, v in project.items()])
+
+
+
 
 # Membuat dokumen
 documents = [
@@ -132,13 +204,13 @@ documents = [
         metadata={"source": "product_info"},
     ),
     Document(
-        page_content=f"Ongkos kirim: {ongkir_text}.",
-        metadata={"source": "shipping_info"},
+        page_content=f"Project: {project_text}.",
+        metadata={"source": "project_info"},
     ),
     Document(
-        page_content="Setelah memilih warna, ukuran, dan alamat, silakan lakukan transfer sesuai total biaya.",
-        metadata={"source": "cart"},
-    ),
+        page_content=f"Mapping barang ke proyek:\n{project_barang_text}",
+        metadata={"source": "project_barang_mapping"},
+    )
 ]
 
 # Tambahkan dokumen ke vector store jika belum ada data
@@ -152,47 +224,59 @@ retriever = vector_store.as_retriever(
     search_kwargs={"k": 3}
 )
 
-# Define prompt template for customer service toko 
-# template = """
-#     You are an assistant for calculating the total cost of items in a shopping cart including shipping costs.
-#     Here is the list of available items, their prices, categories, sizes, stock status, and shipping fees:
-#     {context}
+# template = """You act as an assistant to inform
+# list of available items, prices, categories, sizes, stock status and shipping costs:
+# {context}
 
-#     The user has provided the following information:
-#     {question}
+# The user has provided the following information:
+# {question}
 
-#     If the input contains item details, calculate the total price and return it in this format:
-#     - Details: [item1 (quantity x price) (sizes), item2 (quantity x price) (sizes), ...]
-#     - Shipping Fee: RpXXX (destination: city_name)
-#     - Stock Info: [item1: Available, item2: Out of Stock, ...]
-#     - Total Belanja: ([item1(quantity x price), ...]\n) + RpXXX (city_name) = RpXXX
+# If the input contains item details, calculate the total price and return it in the following format:
+# - Details: [item1 (quantity x price) (size), item2 (quantity x price) (size), ...]
+# - Stock Info: [item1: Available, item2: Out of Stock, ...]
 
-#     If the input contains only a city_name, respond with "Shipping Fee: RpXXX (destination: city_name)".
+# If the input only contains project_name, answer with "Project with project_name Status project_name Instansi instansi".
 
-#     If the number currency Rp use comma for digit number 
+# If you ask about the size and size available per item, please reply with "Item size available" otherwise "Item size not available"
 
-#     """
+# If only item: Available, "stock item available" otherwise "item not available"""
 
-template = """You are an assistant to calculate the total cost of items in the shopping cart including shipping costs.
-Here is a list of available items, prices, categories, sizes, stock status, and shipping costs:
+
+# template= """You act as an assistant to provide information
+# List of available items, prices, categories, sizes, stock status and shipping costs:
+# {context}
+
+# The user has provided the following information:
+# {question}
+
+# If the input contains item details, calculate the total price and return it in the following format:
+# - Details: [item1 (quantity x price) (size), item2 (quantity x price) (size), ...]
+# - Stock Info: [item1: Available, item2: Out of Stock, ...]
+
+# If only the project_name is entered, answer with "Project with project_name Status_project_name Agency agency".
+
+# If only the name of the agency is input, answer with [project_name(agency_name), project_name2(agency_name, ...]
+
+# If you ask about the sizes and sizes available per item, please reply with "Item size available" otherwise, "Item size not available"
+
+# If only item: Available, “stock item available” otherwise “item not available"""
+
+template ="""You act as an assistant to provide information
+List of available items, prices, categories, stock status, and project mapping:
 {context}
 
 The user has provided the following information:
 {question}
 
-If the input contains item details, calculate the total price and return it in this format:
-- Details: [item1 (quantity x price) (size), item2 (quantity x price) (size), ...]
-- Shipping Cost: RpXXX (destination: city_name)
-- Stock Info: [item1: In Stock, item2: Out of Stock, ...]
-- Total Shopping: ([item1 (quantity x price), ...]\n) + RpXXX (city_name) = RpXXX
+If the input contains project_name, return:
+- "Project project_name berisi item berikut: [item1 (quantity), item2 (quantity), ...]"
 
-If the input only contains city_name, answer with "Shipping Cost: RpXXX (destination: city_name)".
+If only the name of the agency is input, answer with [project_name (agency_name), project_name2 (agency_name), ...]
 
-If the currency number is Rp, use a comma for the digits
+If an item is mentioned, return stock availability.
 
-If you ask for the size and the size is available with the size per item, please reply with "Item size available" if not "Item size not available"
-
-If only item: Available, "item stock available" if not "item not available"""
+If size availability is requested, return "Item size available" otherwise, "Item size not available".
+"""
 
 # Initialize the prompt template
 rag_prompt = PromptTemplate.from_template(template)
@@ -234,12 +318,12 @@ HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Shopping Assistant</title>
+    <title>Project Assistance</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
 </head>
 <body>
     <div class="container my-5">
-        <h1 class="text-center mb-4">Shopping Assistant</h1>
+        <h1 class="text-center mb-4">Project Assistant</h1>
         
         <div class="product-list">
             <h2 class="mb-3">Available Products</h2>
@@ -249,7 +333,7 @@ HTML_TEMPLATE = """
                         <th>Name</th>
                         <th>Category</th>
                         <th>Price</th>
-                        <th>Sizes</th>
+                        <th>Merk</th>
                         <th>Stock</th>
                     </tr>
                 </thead>
@@ -259,7 +343,7 @@ HTML_TEMPLATE = """
                         <td>{{ item.nama }}</td>
                         <td>{{ item.kategori }}</td>
                         <td>Rp{{ item.harga }}</td>
-                        <td>{{ ", ".join(item.ukuran) }}</td>
+                        <td>{{ ", ".join(item.merk) }}</td>
                         <td>{{ "Available" if item.stok else "Out of Stock" }}</td>
                     </tr>
                 {% endfor %}
@@ -268,14 +352,26 @@ HTML_TEMPLATE = """
         </div>
 
         <div class="shipping-rates mt-5">
-            <h2 class="mb-3">Shipping Rates</h2>
+            <h2 class="mb-3">Project List</h2>
             <ul class="list-group">
-            {% for city, rate in shipping_rates.items() %}
+            {% for key, val in project_list.items() %}
                 <li class="list-group-item d-flex justify-content-between align-items-center">
-                    <strong>{{ city }}</strong>
-                    <span class="badge bg-primary">Rp{{ rate }}</span>
+                    <strong>{{ key }}</strong>
+                    <span class="badge bg-primary">{{ val[0] }}</span>
+                    <strong>{{ val[1] }}</strong>
+                    <span class="badge bg-primary">{{ val[2] }}</span>
                 </li>
             {% endfor %}
+            </ul>
+        </div>
+        <div class="project-items mt-5">
+            <h2 class="mb-3">Project Item Mapping</h2>
+            <ul class="list-group">
+                {% for project, items in project_barang.items() %}
+                    <li class="list-group-item">
+                        <strong>{{ project }}</strong>: {{ ", ".join(items) }}
+                    </li>
+                {% endfor %}
             </ul>
         </div>
 
@@ -293,7 +389,7 @@ HTML_TEMPLATE = """
 
         <div class="mt-4">
             <h2>Ask a Question</h2>
-            <p class="text-muted">Example: "What is the shipping cost to Jakarta for 2 Baju Kemeja size M?"</p>
+            <p class="text-muted">Example: "Project apa yang running saat ini yang blm selesai ?"</p>
             <form method="POST" class="row g-3">
                 <div class="col-md-8">
                     <input type="text" name="question" class="form-control" placeholder="Enter your question here" required>
@@ -332,7 +428,7 @@ HTML_TEMPLATE = """
 def home():
     answer = None
     available_items = get_barang()
-    shipping_rates = get_ongkir()
+    project_list = get_project()
     search_results = []
 
     if request.method == "POST":
@@ -352,7 +448,8 @@ def home():
     return render_template_string(
         HTML_TEMPLATE,
         available_items=available_items,
-        shipping_rates=shipping_rates,
+        project_list=project_list,
+        project_barang=project_barang,  # Tambahkan ke render
         search_results=search_results,
         answer=answer
     )
@@ -380,4 +477,4 @@ def ask():
         return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=True, port=5999)
